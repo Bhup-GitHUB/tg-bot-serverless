@@ -3,7 +3,7 @@ import { buildBot } from "../src/bot";
 const env = {
   BOT_TOKEN: process.env.BOT_TOKEN,
   DATABASE_URL: process.env.DATABASE_URL,
-  OWNER_ID: process.env.OWNER_ID,
+  AUTHORIZED_IDS: process.env.AUTHORIZED_IDS,
   WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
 } as Env;
 

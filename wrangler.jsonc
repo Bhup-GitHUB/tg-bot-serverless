@@ -2,12 +2,13 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tg-bot-serverless",
   "main": "src/index.ts",
+  "account_id": "ee8af6720abd071bc7cd5123129845ec",
   "compatibility_date": "2026-07-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true
   },
   "vars": {
-    "OWNER_ID": "6281062507"
+    "AUTHORIZED_IDS": "6281062507"
   }
 }

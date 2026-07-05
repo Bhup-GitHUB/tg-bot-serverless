@@ -1,48 +1,39 @@
-import { Bot } from "grammy";
+import { Bot, type Context } from "grammy";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db";
 import { emails } from "./db/schema";
+import { isAuthorized, parseAuthorizedIds } from "./auth";
+import * as messages from "./messages";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const HELP_TEXT = [
-  "Email manager bot.",
-  "",
-  "/add <email> [label] - store an email",
-  "/del <email> - remove an email",
-  "/list - show stored emails",
-  "/help - show this message",
-].join("\n");
-
 const isValidEmail = (value: string) => EMAIL_PATTERN.test(value);
 
-const formatEmail = (row: typeof emails.$inferSelect) => {
-  const date = row.createdAt.toISOString().slice(0, 10);
-  const label = row.label ? ` (${row.label})` : "";
-  return `- ${row.email}${label} [${date}]`;
-};
+const reply = (ctx: Context, text: string) =>
+  ctx.reply(text, { parse_mode: "HTML" });
 
 export const buildBot = (env: Env) => {
   const bot = new Bot(env.BOT_TOKEN);
   const db = getDb(env);
+  const authorizedIds = parseAuthorizedIds(env.AUTHORIZED_IDS);
 
   bot.use(async (ctx, next) => {
-    if (String(ctx.from?.id) !== env.OWNER_ID) {
-      await ctx.reply("Not authorized.");
+    if (!isAuthorized(authorizedIds, ctx.from?.id)) {
+      await reply(ctx, messages.notAuthorized(String(ctx.from?.id ?? "unknown")));
       return;
     }
     await next();
   });
 
-  bot.command(["start", "help"], (ctx) => ctx.reply(HELP_TEXT));
+  bot.command(["start", "help"], (ctx) => reply(ctx, messages.WELCOME));
 
   bot.command("add", async (ctx) => {
-    const parts = ctx.match.trim().split(/\s+/);
+    const parts = ctx.match.trim().split(/\s+/).filter(Boolean);
     const email = parts.shift() ?? "";
-    const label = parts.join(" ").trim() || null;
+    const label = parts.join(" ") || null;
 
     if (!isValidEmail(email)) {
-      await ctx.reply("Usage: /add <email> [label]");
+      await reply(ctx, messages.ADD_USAGE);
       return;
     }
 
@@ -52,8 +43,11 @@ export const buildBot = (env: Env) => {
       .onConflictDoNothing({ target: emails.email })
       .returning({ id: emails.id });
 
-    await ctx.reply(
-      inserted.length > 0 ? `Added ${email}` : `${email} already exists`,
+    await reply(
+      ctx,
+      inserted.length > 0
+        ? messages.added(email, label)
+        : messages.alreadyExists(email),
     );
   });
 
@@ -61,7 +55,7 @@ export const buildBot = (env: Env) => {
     const email = ctx.match.trim();
 
     if (!isValidEmail(email)) {
-      await ctx.reply("Usage: /del <email>");
+      await reply(ctx, messages.DEL_USAGE);
       return;
     }
 
@@ -70,21 +64,22 @@ export const buildBot = (env: Env) => {
       .where(eq(emails.email, email))
       .returning({ id: emails.id });
 
-    await ctx.reply(
-      deleted.length > 0 ? `Removed ${email}` : `${email} not found`,
+    await reply(
+      ctx,
+      deleted.length > 0 ? messages.removed(email) : messages.notInList(email),
     );
   });
 
   bot.command("list", async (ctx) => {
     const rows = await db.select().from(emails).orderBy(emails.createdAt);
 
-    if (rows.length === 0) {
-      await ctx.reply("No emails stored.");
-      return;
-    }
-
-    await ctx.reply(rows.map(formatEmail).join("\n"));
+    await reply(
+      ctx,
+      rows.length > 0 ? messages.formatList(rows) : messages.LIST_EMPTY,
+    );
   });
+
+  bot.on("message", (ctx) => reply(ctx, messages.UNKNOWN));
 
   bot.catch((err) => {
     console.error("bot error", err.error);
