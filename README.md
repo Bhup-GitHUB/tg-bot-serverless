@@ -18,13 +18,16 @@ Neon serverless Postgres database. Runs on Cloudflare Workers via webhook.
 - `/list` show stored emails
 - `/help` show usage
 
-All commands are restricted to the account whose numeric id matches `OWNER_ID`.
+Access is restricted to the numeric Telegram ids listed in `AUTHORIZED_IDS`
+(comma-separated). Anyone else gets a message showing their own id so they can
+request access.
 
 ## Setup
 
 1. Create a Neon project and copy the connection string into `DATABASE_URL`.
 2. Create a bot with @BotFather and copy the token into `BOT_TOKEN`.
-3. Get your numeric Telegram id from @userinfobot and set it as `OWNER_ID`.
+3. Get your numeric Telegram id (message the bot once; the reply shows it) and set
+   it as `AUTHORIZED_IDS`. Add more users by comma-separating their ids.
 4. Choose any random string for `WEBHOOK_SECRET`.
 5. Copy `.dev.vars.example` to `.dev.vars` and fill in the four values.
 6. Create the table in Neon:
@@ -40,14 +43,25 @@ bun install
 bun run dev
 ```
 
-Telegram cannot reach localhost, so simulate an update by posting to the local
-worker. The header must match `WEBHOOK_SECRET`.
+To test live in Telegram without deploying or owning a domain, run the bot in
+long-polling mode (this pulls updates directly from Telegram):
+
+```
+bun run dev:poll
+```
+
+Stop it before setting a production webhook, since polling and a webhook cannot
+both be active on the same bot.
+
+To exercise the webhook path locally instead, post a simulated update to the local
+worker. The secret header must match `WEBHOOK_SECRET`, and the `entities` array is
+required (that is how Telegram, and grammy, recognize a command):
 
 ```
 curl -X POST http://localhost:8787/webhook \
   -H "Content-Type: application/json" \
   -H "X-Telegram-Bot-Api-Secret-Token: <WEBHOOK_SECRET>" \
-  -d '{"update_id":1,"message":{"message_id":1,"date":0,"chat":{"id":<OWNER_ID>,"type":"private"},"from":{"id":<OWNER_ID>,"is_bot":false,"first_name":"me"},"text":"/add test@example.com work"}}'
+  -d '{"update_id":1,"message":{"message_id":1,"date":0,"chat":{"id":<YOUR_ID>,"type":"private"},"from":{"id":<YOUR_ID>,"is_bot":false,"first_name":"me"},"text":"/add test@example.com work","entities":[{"offset":0,"length":4,"type":"bot_command"}]}}'
 ```
 
 Inspect the database with `bun run db:studio`.
@@ -60,7 +74,7 @@ wrangler secret put DATABASE_URL
 wrangler secret put WEBHOOK_SECRET
 ```
 
-Set `OWNER_ID` in `wrangler.jsonc` under `vars`, then deploy:
+Set `AUTHORIZED_IDS` in `wrangler.jsonc` under `vars`, then deploy:
 
 ```
 bun run deploy

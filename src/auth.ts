@@ -1,4 +1,4 @@
-export const parseAuthorizedIds = (raw: string) =>
+export const parseIds = (raw: string) =>
   new Set(
     raw
       .split(",")
@@ -6,5 +6,4 @@ export const parseAuthorizedIds = (raw: string) =>
       .filter((id) => id.length > 0),
   );
 
-export const isAuthorized = (ids: Set<string>, userId: number | undefined) =>
-  userId !== undefined && ids.has(String(userId));
+export const isValidUserId = (value: string) => /^\d{1,20}$/.test(value);

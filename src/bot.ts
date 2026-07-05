@@ -2,7 +2,8 @@ import { Bot, type Context } from "grammy";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db";
 import { emails } from "./db/schema";
-import { isAuthorized, parseAuthorizedIds } from "./auth";
+import { isValidUserId, parseIds } from "./auth";
+import { addUser, isKnownUser, listUsers, removeUser } from "./users";
 import * as messages from "./messages";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -15,17 +16,23 @@ const reply = (ctx: Context, text: string) =>
 export const buildBot = (env: Env) => {
   const bot = new Bot(env.BOT_TOKEN);
   const db = getDb(env);
-  const authorizedIds = parseAuthorizedIds(env.AUTHORIZED_IDS);
+  const adminIds = parseIds(env.ADMIN_IDS);
+
+  const isAdmin = (ctx: Context) => adminIds.has(String(ctx.from?.id ?? ""));
 
   bot.use(async (ctx, next) => {
-    if (!isAuthorized(authorizedIds, ctx.from?.id)) {
-      await reply(ctx, messages.notAuthorized(String(ctx.from?.id ?? "unknown")));
+    const id = String(ctx.from?.id ?? "");
+    const allowed = adminIds.has(id) || (await isKnownUser(db, id));
+    if (!allowed) {
+      await reply(ctx, messages.notAuthorized(id));
       return;
     }
     await next();
   });
 
-  bot.command(["start", "help"], (ctx) => reply(ctx, messages.WELCOME));
+  bot.command(["start", "help"], (ctx) =>
+    reply(ctx, isAdmin(ctx) ? messages.WELCOME_ADMIN : messages.WELCOME),
+  );
 
   bot.command("add", async (ctx) => {
     const parts = ctx.match.trim().split(/\s+/).filter(Boolean);
@@ -77,6 +84,59 @@ export const buildBot = (env: Env) => {
       ctx,
       rows.length > 0 ? messages.formatList(rows) : messages.LIST_EMPTY,
     );
+  });
+
+  bot.command("adduser", async (ctx) => {
+    if (!isAdmin(ctx)) {
+      await reply(ctx, messages.ADMINS_ONLY);
+      return;
+    }
+
+    const id = ctx.match.trim();
+    if (!isValidUserId(id)) {
+      await reply(ctx, messages.ADD_USER_USAGE);
+      return;
+    }
+
+    const added = await addUser(db, id, String(ctx.from?.id));
+    await reply(
+      ctx,
+      added.length > 0 ? messages.userAdded(id) : messages.userExists(id),
+    );
+  });
+
+  bot.command("deluser", async (ctx) => {
+    if (!isAdmin(ctx)) {
+      await reply(ctx, messages.ADMINS_ONLY);
+      return;
+    }
+
+    const id = ctx.match.trim();
+    if (!isValidUserId(id)) {
+      await reply(ctx, messages.DEL_USER_USAGE);
+      return;
+    }
+
+    if (adminIds.has(id)) {
+      await reply(ctx, messages.cannotRemoveAdmin(id));
+      return;
+    }
+
+    const removed = await removeUser(db, id);
+    await reply(
+      ctx,
+      removed.length > 0 ? messages.userRemoved(id) : messages.userNotFound(id),
+    );
+  });
+
+  bot.command("users", async (ctx) => {
+    if (!isAdmin(ctx)) {
+      await reply(ctx, messages.ADMINS_ONLY);
+      return;
+    }
+
+    const members = await listUsers(db);
+    await reply(ctx, messages.formatUsers([...adminIds], members));
   });
 
   bot.on("message", (ctx) => reply(ctx, messages.UNKNOWN));

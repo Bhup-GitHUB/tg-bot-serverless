@@ -9,3 +9,12 @@ export const emails = pgTable("emails", {
 
 export type Email = typeof emails.$inferSelect;
 export type NewEmail = typeof emails.$inferInsert;
+
+export const users = pgTable("users", {
+  telegramId: text("telegram_id").primaryKey(),
+  role: text("role").notNull().default("member"),
+  addedBy: text("added_by"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type User = typeof users.$inferSelect;
