@@ -35,7 +35,40 @@ export const buildBot = (env: Env) => {
   );
 
   bot.command("add", async (ctx) => {
-    const parts = ctx.match.trim().split(/\s+/).filter(Boolean);
+    const raw = ctx.match.trim();
+
+    if (raw.includes(",")) {
+      const candidates = [
+        ...new Set(
+          raw
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean),
+        ),
+      ];
+      const valid = candidates.filter(isValidEmail);
+      const invalid = candidates.filter((value) => !isValidEmail(value));
+
+      if (valid.length === 0) {
+        await reply(ctx, messages.ADD_USAGE);
+        return;
+      }
+
+      const insertedRows = await db
+        .insert(emails)
+        .values(valid.map((email) => ({ email, label: null })))
+        .onConflictDoNothing({ target: emails.email })
+        .returning({ email: emails.email });
+
+      const added = insertedRows.map((row) => row.email);
+      const addedSet = new Set(added);
+      const existed = valid.filter((email) => !addedSet.has(email));
+
+      await reply(ctx, messages.addedBulk(added, existed, invalid));
+      return;
+    }
+
+    const parts = raw.split(/\s+/).filter(Boolean);
     const email = parts.shift() ?? "";
     const label = parts.join(" ") || null;
 

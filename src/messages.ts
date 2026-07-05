@@ -6,7 +6,7 @@ export const escapeHtml = (value: string) =>
 export const code = (value: string) => `<code>${escapeHtml(value)}</code>`;
 
 const EMAIL_COMMANDS = [
-  "/add &lt;email&gt; [label] — save an email",
+  "/add &lt;email&gt;[, &lt;email&gt; ...] [label] — save one or many",
   "/del &lt;email&gt; — remove an email",
   "/list — show all saved emails",
   "/help — show this message",
@@ -42,7 +42,8 @@ export const WELCOME_ADMIN = [
 
 export const ADD_USAGE = [
   "Usage: /add &lt;email&gt; [label]",
-  "Example: /add jane@work.com finance",
+  "One email: /add jane@work.com finance",
+  "Many emails: /add jane@work.com, bob@work.com, carol@work.com",
 ].join("\n");
 
 export const DEL_USAGE = "Usage: /del &lt;email&gt;";
@@ -64,6 +65,30 @@ export const added = (email: string, label: string | null) => {
 };
 
 export const alreadyExists = (email: string) => `${code(email)} is already saved.`;
+
+const MAX_LISTED = 20;
+
+export const addedBulk = (
+  added: string[],
+  existed: string[],
+  invalid: string[],
+) => {
+  const counts: string[] = [];
+  if (added.length > 0) counts.push(`Added ${added.length}`);
+  if (existed.length > 0) counts.push(`Already saved ${existed.length}`);
+  if (invalid.length > 0) counts.push(`Invalid ${invalid.length}`);
+
+  const lines = [...counts];
+
+  if (added.length > 0 && added.length <= MAX_LISTED) {
+    lines.push("", "Added:", ...added.map((email) => `- ${code(email)}`));
+  }
+  if (invalid.length > 0 && invalid.length <= MAX_LISTED) {
+    lines.push("", "Invalid:", ...invalid.map((value) => `- ${code(value)}`));
+  }
+
+  return lines.join("\n");
+};
 
 export const removed = (email: string) => `Removed ${code(email)}`;
 

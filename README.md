@@ -13,24 +13,39 @@ Neon serverless Postgres database. Runs on Cloudflare Workers via webhook.
 
 ## Commands
 
+Everyone with access shares one email list:
+
 - `/add <email> [label]` store an email with an optional label
 - `/del <email>` remove an email
 - `/list` show stored emails
 - `/help` show usage
 
-Access is restricted to the numeric Telegram ids listed in `AUTHORIZED_IDS`
-(comma-separated). Anyone else gets a message showing their own id so they can
-request access.
+Admin-only commands (manage who can use the bot, live from Telegram):
+
+- `/adduser <telegram_id>` authorize a person
+- `/deluser <telegram_id>` revoke access
+- `/users` list authorized users
+
+## Access control
+
+Admins are the numeric Telegram ids in the `ADMIN_IDS` env var (comma-separated).
+Only admins can run the user-management commands. Everyone else who is authorized
+lives in the `users` table and is managed at runtime through `/adduser` and
+`/deluser` — no redeploy needed.
+
+Anyone not authorized gets a reply showing their own numeric id, which they can
+send to an admin to request access.
 
 ## Setup
 
 1. Create a Neon project and copy the connection string into `DATABASE_URL`.
 2. Create a bot with @BotFather and copy the token into `BOT_TOKEN`.
 3. Get your numeric Telegram id (message the bot once; the reply shows it) and set
-   it as `AUTHORIZED_IDS`. Add more users by comma-separating their ids.
+   it as `ADMIN_IDS`. Comma-separate to have more than one admin. Everyone else is
+   added later at runtime with `/adduser`.
 4. Choose any random string for `WEBHOOK_SECRET`.
 5. Copy `.dev.vars.example` to `.dev.vars` and fill in the four values.
-6. Create the table in Neon:
+6. Create the tables in Neon:
 
    ```
    bun run db:push
@@ -74,7 +89,7 @@ wrangler secret put DATABASE_URL
 wrangler secret put WEBHOOK_SECRET
 ```
 
-Set `AUTHORIZED_IDS` in `wrangler.jsonc` under `vars`, then deploy:
+Set `ADMIN_IDS` in `wrangler.jsonc` under `vars`, then deploy:
 
 ```
 bun run deploy
