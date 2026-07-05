@@ -46,11 +46,19 @@ export const buildBot = (env: Env) => {
       return;
     }
 
-    const inserted = await db
-      .insert(emails)
-      .values({ email, label })
-      .onConflictDoNothing({ target: emails.email })
-      .returning({ id: emails.id });
+    console.log("DBG add: before insert", email);
+    let inserted;
+    try {
+      inserted = await db
+        .insert(emails)
+        .values({ email, label })
+        .onConflictDoNothing({ target: emails.email })
+        .returning({ id: emails.id });
+      console.log("DBG add: insert ok", JSON.stringify(inserted));
+    } catch (e) {
+      console.log("DBG add: insert THREW", String(e));
+      throw e;
+    }
 
     await ctx.reply(
       inserted.length > 0 ? `Added ${email}` : `${email} already exists`,
