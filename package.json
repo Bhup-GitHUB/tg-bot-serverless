@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
+    "dev:poll": "bun --env-file=.dev.vars run scripts/poll.ts",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "cf-typegen": "wrangler types",
